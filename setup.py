@@ -5,18 +5,17 @@ with open("README.md", "r") as rm:
 
 setuptools.setup(
     name="trafolta",
-    version="0.0.1",
+    version="0.1.0",
     description="Coordinate Transformations for Swiss Reference Systems",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/eraymann/trafolta",
     author="Elias Raymann",
     author_email="elias.raymann@swisstopo.ch",
-    packages=setuptools.find_packages(),
+    packages=setuptools.find_packages(exclude=["tests"]),
     classifiers=[
         "Development Status :: 4 - Beta",
-        "Programming Language :: Python :: 2.7",
-        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.6",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],

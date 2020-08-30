@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
+# coding=utf-8
 
 # MIT License
 #
-# Copyright (c) 2020 Elias Raymann
+# Copyright (c) 2020 Elias Raymann & Vincent Vega
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -22,93 +22,187 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+# Formula:
+# https://www.swisstopo.admin.ch/en/maps-data-online/calculation-services.html (see 'Documents & Publications')
 
-# TODO: fix paths and mention of the source
-# WGS84 <-> LV03 converter based on the scripts of swisstopo written for python2.7
-# Aaron Schmocker [aaron@duckpond.ch]
-
-# Source: http://www.swisstopo.admin.ch/internet/swisstopo/en/home/topics/survey/sys/refsys/projections.html (see PDFs under "Documentation")
-# Updated 9 dec 2014
-# Please validate your results with NAVREF on-line service: http://www.swisstopo.admin.ch/internet/swisstopo/en/home/apps/calc/navref.html (difference ~ 1-2m)
-
-import math
+import re
+import warnings
 
 
-def lv03_to_wgs84(east, north, height=None):
+def string_to_dms(coord):
+    """Converts well formed coordinate string to its components.
+    Example: 41°24'12.2" -> (41, 24, 12.2)
+
+    :param str coord: coordinate string formatted as <DD°MM'SS.S[E|N]>
+    :rtype: (int, int, float)
     """
-    Convert LV03 to WGS84.
+    match = re.match(r"^\d{1,2}°\d{1,2}\'\d{1,2}(\.\d+)?\"[EN]?$", coord)
+    if not match:
+        warnings.warn("Argument value <{}> does not match pattern <DD°MM'SS.S\">".format(coord))
+        return
+    components = re.split(r"[°'\"]+", match.string)
 
-    :param float height: altitude
-    :param float east:
-    :param float north:
+    print(int(components[0]), int(components[1]), float(components[2]))
+    return int(components[0]), int(components[1]), float(components[2])
+
+
+def dms_to_string(d, m, s, decimals=2):
+    """Converts degrees, minutes and decimal seconds to well formated coordinate string.
+    Example: (41, 24, 12.2)-> 41°24'12.2"
+
+    :param int d: degrees
+    :param int m: minutes
+    :param float s: decimal seconds
+    :param int decimals: second's decimals
+    :rtype: str
+    """
+    return "{d:d}°{m:02d}'{s:0{z}.{c}f}\"".format(d=d, m=m, s=s, z=decimals + 3 if decimals > 0 else 2, c=decimals)
+
+
+def dmm_to_dms(d, mm):
+    """Converts degrees and decimal minutes to degrees, minutes and decimal seconds.
+    Example: (41, 24.2033) -> (41, 24, 12.2)
+
+    :param int d: degrees
+    :param float mm: decimal minutes
+    :rtype: (int, int, float)
+    """
+    m = int(mm)
+    s = (mm - m) * 60
+    return d, m, s
+
+
+def dms_to_dmm(d, m, s):
+    """Converts degrees, minutes and decimal seconds to degrees and decimal minutes.
+    Example: (41, 24, 12.2) -> (41, 24.2033)
+
+    :param int d: degrees
+    :param int m: minutes
+    :param float s: decimal seconds
+    :rtype: str
+    """
+    return d, m + s / 60
+
+
+def dd_to_dms(dd):
+    d = int(dd)
+    m = int((dd - d) * 60)
+    s = (dd - d - m / 60) * 3600
+    return d, m, s
+
+
+def dms_to_dd(d, m, s):
+    return d + (m / 60) + (s / 3600)
+
+
+def dms_to_sex(d, m, s):
+    """Converts degrees, minutes and decimal seconds to sexagesimal seconds.
+    Example: (41, 24, 12.2) -> 149052.2
+
+    :param int d: degrees
+    :param int m: minutes
+    :param float s: decimal seconds
     :rtype: float
     """
-    # Axiliary values (Bern)
-    e_aux = (east - 600000) / 1000000
-    n_aux = (north - 200000) / 1000000
-
-    lat = 16.9023892 + 3.238272 * n_aux - 0.270978 * pow(e_aux, 2) - 0.002528 * pow(n_aux, 2) - 0.0447 * n_aux * pow(e_aux, 2) - 0.0140 * pow(n_aux, 3)
-    lon = 2.6779094 + 4.728982 * e_aux + 0.791484 * e_aux * n_aux + 0.1306 * e_aux * pow(n_aux, 2) - 0.0436 * pow(e_aux, 3)
-    alt = height + 49.55 - 12.60 * e_aux - 22.64 * n_aux if height else None
-
-    # convert seconds to degrees (dec)
-    return lat / 0.36, lon / 0.36, alt
-
-
-def _dec_to_sex_angle(dec_deg):
-    """
-    Convert decimal angle (° dec) to sexagesimal angle (dd.mmss,ss).
-
-    :param dec_deg:
-    :return:
-    """
-    degree = int(dec_deg)
-    minute = int((dec_deg - degree) * 60)
-    second = (((dec_deg - degree) * 60) - minute) * 60
-    return degree + (minute / 100.0 * 60) + (second / 10000.0 * 3600)
-
-
-def _sex_angle_to_seconds(dms):
-    """
-    Convert sexagesimal angle (dd.mmss,ss) to seconds.
-
-    :param dms:
-    :return:
-    """
-    degree = math.floor(dms)
-    minute = math.floor((dms - degree) * 100)
-    second = (((dms - degree) * 100) - minute) * 100
-    result = second + (minute * 60) + (degree * 3600)
-    return second + (minute * 60) + (degree * 3600)
+    return (d * 3600) + (m * 60) + s
 
 
 def wgs84_to_lv03(latitude, longitude, altitude=None):
-    """
-    Convert WGS84 to LV03 Return an array of double that contaign east,
-    north, and height
+    """Convert WGS84 to LV03.
 
-    :param float latitude: latitude
-    :param float longitude: longitude
+    :param float latitude: latitude in degrees
+    :param float longitude: longitude in degrees
     :param float altitude: altitude
-    :return:
+    :rtype: (float, float, float)
     """
-    lat = _dec_to_sex_angle(dec_deg=latitude)
-    lng = _dec_to_sex_angle(dec_deg=longitude)
-    lat = _sex_angle_to_seconds(dms=lat)
-    lng = _sex_angle_to_seconds(dms=lng)
-    #
-    # print((divmod(latitude, int(latitude))[1] / 10) * 6)
+    lat_sex = dms_to_sex(*dd_to_dms(dd=latitude))
+    lon_sex = dms_to_sex(*dd_to_dms(dd=longitude))
 
-    # Axiliary values (% Bern)
-    lat_aux = (latitude * 3600 - 169028.66) / 10000
-    lon_aux = (longitude * 3600 - 26782.5) / 10000
+    # Axiliary values
+    lat_aux = (lat_sex - 169028.66) / 10000
+    lon_aux = (lon_sex - 26782.5) / 10000
 
-    east = 600072.37 + 211455.93 * lon_aux - 10938.51 * lon_aux * lat_aux - 0.36 * lon_aux * pow(lat_aux, 2) - 44.54 * pow(lon_aux, 3)
-    north = 200147.07 + 308807.95 * lat_aux + 3745.25 * pow(lon_aux, 2) + 76.63 * pow(lat_aux, 2) - 194.56 * pow(lon_aux, 2) * lat_aux + 119.79 * pow(lat_aux, 3)
-    height = altitude - 49.55 + 2.73 * lon_aux + 6.94 * lat_aux if altitude else None
+    east = \
+        600072.37 \
+        + 211455.93 * lon_aux \
+        - 10938.51 * lon_aux * lat_aux \
+        - 0.36 * lon_aux * lat_aux ** 2 \
+        - 44.54 * lon_aux ** 3
+
+    north = \
+        200147.07 \
+        + 308807.95 * lat_aux \
+        + 3745.25 * lon_aux ** 2 \
+        + 76.63 * lat_aux ** 2 \
+        - 194.56 * lon_aux ** 2 * lat_aux \
+        + 119.79 * lat_aux ** 3
+
+    height = None if altitude is None else \
+        altitude \
+        - 49.55 \
+        + 2.73 * lon_aux \
+        + 6.94 * lat_aux
 
     return east, north, height
 
 
-print(lv03_to_wgs84(east=751257.13, north=252777.7))
-print(wgs84_to_lv03(47.40843067781613, 9.442845024413383))
+def wgs84_to_lv95(latitude, longitude, altitude=None):
+    """Converts WGS84 to LV95.
+
+    :param float latitude: latitude in degrees
+    :param float longitude: longitude in degrees
+    :param float altitude: altitude
+    :rtype: (float, float, float)
+    """
+    east, north, height = wgs84_to_lv03(latitude, longitude, altitude)
+    return east + 2000000, north + 1000000, height
+
+
+def __to_wgs84(e_aux, n_aux, height):
+    """Helper function to calculate wgs84 from aux values.
+    """
+    lat = \
+        16.9023892 \
+        + 3.238272 * n_aux \
+        - 0.270978 * e_aux ** 2 \
+        - 0.002528 * n_aux ** 2 \
+        - 0.0447 * n_aux * e_aux ** 2 \
+        - 0.0140 * n_aux ** 3
+
+    lon = \
+        2.6779094 \
+        + 4.728982 * e_aux \
+        + 0.791484 * e_aux * n_aux \
+        + 0.1306 * e_aux * n_aux ** 2 \
+        - 0.0436 * e_aux ** 3
+
+    alt = None if height is None else \
+        height \
+        + 49.55 \
+        - 12.60 * e_aux \
+        - 22.64 * n_aux
+
+    # convert seconds to decimal degrees
+    return lat / 0.36, lon / 0.36, alt
+
+
+def lv03_to_wgs84(east, north, height=None):
+    """Converts LV03 to WGS84.
+
+    :param float east: east
+    :param float north: north
+    :param float height: height
+    :rtype: (float, float, float)
+    """
+    return __to_wgs84(e_aux=(east - 600000) / 1000000, n_aux=(north - 200000) / 1000000, height=height)
+
+
+def lv95_to_wgs84(east, north, height=None):
+    """Converts LV95 to WGS84.
+
+    :param float east: east
+    :param float north: north
+    :param float height: height
+    :rtype: (float, float, float)
+    """
+    return __to_wgs84(e_aux=(east - 2600000) / 1000000, n_aux=(north - 1200000) / 1000000, height=height)
