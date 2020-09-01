@@ -29,6 +29,7 @@ class Test(TestCase):
         self.assertEqual(chtrans.string_to_dms("46°12'34.2\"N"), (46, 12, 34.2))
         self.assertEqual(chtrans.string_to_dms("8°3'34\"E"), (8, 3, 34.0))
         self.assertWarns(UserWarning, chtrans.string_to_dms, "1234°3'34\"E")
+        self.assertWarns(UserWarning, chtrans.string_to_dms, "bla")
 
     def test_dms_to_string(self):
         self.assertEqual(chtrans.dms_to_string(d=46, m=12, s=34.1238, decimals=3), "46°12'34.124\"")
